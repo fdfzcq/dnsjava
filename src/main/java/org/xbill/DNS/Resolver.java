@@ -8,11 +8,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 /**
  * Interface describing a resolver.
@@ -142,8 +138,12 @@ public interface Resolver {
    * @throws IOException An error occurred while sending or receiving.
    */
   default Message send(Message query) throws IOException {
+    return send(query, ForkJoinPool.commonPool());
+  }
+
+  default Message send(Message query, Executor executor) throws IOException {
     try {
-      CompletableFuture<Message> result = sendAsync(query).toCompletableFuture();
+      CompletableFuture<Message> result = sendAsync(query, executor).toCompletableFuture();
       return result.get(getTimeout().toMillis(), TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -177,6 +177,10 @@ public interface Resolver {
    */
   @SuppressWarnings("deprecation")
   default CompletionStage<Message> sendAsync(Message query) {
+    return sendAsync(query, ForkJoinPool.commonPool());
+  }
+
+  default CompletionStage<Message> sendAsync(Message query, Executor executor) {
     CompletableFuture<Message> f = new CompletableFuture<>();
     sendAsync(
         query,
@@ -190,7 +194,8 @@ public interface Resolver {
           public void handleException(Object id, Exception e) {
             f.completeExceptionally(e);
           }
-        });
+        },
+        executor);
     return f;
   }
 
@@ -208,9 +213,9 @@ public interface Resolver {
    * @deprecated Use {@link #sendAsync(Message)}
    */
   @Deprecated
-  default Object sendAsync(Message query, ResolverListener listener) {
+  default Object sendAsync(Message query, ResolverListener listener, Executor executor) {
     final Object id = new Object();
-    CompletionStage<Message> f = sendAsync(query);
+    CompletionStage<Message> f = sendAsync(query, ForkJoinPool.commonPool());
     f.handleAsync(
         (result, throwable) -> {
           if (throwable != null) {

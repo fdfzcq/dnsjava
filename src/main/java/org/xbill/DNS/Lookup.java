@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
@@ -100,6 +102,8 @@ public final class Lookup {
     defaultNdots = ResolverConfig.getCurrentConfig().ndots();
     defaultHostsFileParser = new HostsFileParser();
   }
+
+  private static final Executor executor = Executors.newFixedThreadPool(50);
 
   static {
     refreshDefault();
@@ -564,7 +568,7 @@ public final class Lookup {
     Message query = Message.newQuery(question);
     Message response;
     try {
-      response = resolver.send(query);
+      response = resolver.send(query, executor);
     } catch (IOException e) {
       log.debug(
           "Lookup for {}/{}, id={} failed using resolver {}",
